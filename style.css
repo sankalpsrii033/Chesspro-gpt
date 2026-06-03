@@ -1,0 +1,273 @@
+/* =========================
+   CHESSGPT PRO V1
+========================= */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, Helvetica, sans-serif;
+    background: #0f172a;
+    color: #ffffff;
+    min-height: 100vh;
+}
+
+/* =========================
+   HEADER
+========================= */
+
+header {
+    text-align: center;
+    padding: 25px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+header h1 {
+    font-size: 2.5rem;
+    margin-bottom: 8px;
+}
+
+header p {
+    color: #94a3b8;
+}
+
+/* =========================
+   LAYOUT
+========================= */
+
+.container {
+    display: flex;
+    justify-content: center;
+    gap: 25px;
+    padding: 25px;
+    flex-wrap: wrap;
+}
+
+.left-panel,
+.right-panel {
+    width: 280px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.board-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* =========================
+   CARDS
+========================= */
+
+.card {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 18px;
+    backdrop-filter: blur(10px);
+}
+
+.card h2 {
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+}
+
+/* =========================
+   BOARD
+========================= */
+
+#board {
+    width: 600px;
+    max-width: 95vw;
+    margin-bottom: 20px;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 0 25px rgba(0,0,0,0.4);
+}
+
+/* =========================
+   BUTTONS
+========================= */
+
+button {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: 0.25s ease;
+}
+
+button:hover {
+    transform: translateY(-2px);
+}
+
+#start-game {
+    background: #22c55e;
+    color: white;
+}
+
+#new-game {
+    background: #3b82f6;
+    color: white;
+}
+
+#flip-board {
+    background: #f59e0b;
+    color: white;
+}
+
+#resign {
+    background: #ef4444;
+    color: white;
+}
+
+/* =========================
+   SELECT BOX
+========================= */
+
+select {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    border: none;
+    margin-top: 10px;
+    background: #1e293b;
+    color: white;
+    font-size: 15px;
+}
+
+/* =========================
+   STATUS
+========================= */
+
+.game-status {
+    width: 100%;
+    max-width: 600px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    padding: 15px;
+}
+
+.game-status h3 {
+    margin-bottom: 8px;
+}
+
+#status {
+    color: #cbd5e1;
+}
+
+/* =========================
+   MOVE HISTORY
+========================= */
+
+#move-history {
+    max-height: 400px;
+    overflow-y: auto;
+    line-height: 1.8;
+    color: #cbd5e1;
+}
+
+#move-history::-webkit-scrollbar {
+    width: 6px;
+}
+
+#move-history::-webkit-scrollbar-thumb {
+    background: #475569;
+    border-radius: 10px;
+}
+
+/* =========================
+   GAME INFO
+========================= */
+
+.right-panel p {
+    margin-bottom: 12px;
+}
+
+/* =========================
+   MODAL
+========================= */
+
+.modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 999;
+}
+
+.hidden {
+    display: none;
+}
+
+.modal-content {
+    background: #111827;
+    width: 90%;
+    max-width: 550px;
+    border-radius: 20px;
+    padding: 25px;
+    border: 1px solid rgba(255,255,255,0.08);
+}
+
+.modal-content h2 {
+    margin-bottom: 20px;
+}
+
+#analysis-content p {
+    margin-bottom: 12px;
+    font-size: 16px;
+}
+
+/* =========================
+   MOBILE
+========================= */
+
+@media (max-width: 1000px) {
+
+    .container {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .left-panel,
+    .right-panel {
+        width: 100%;
+        max-width: 600px;
+    }
+
+    #board {
+        width: 95vw;
+    }
+}
+
+/* =========================
+   ANIMATION
+========================= */
+
+.card,
+.game-status,
+.modal-content {
+    animation: fadeIn 0.4s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
