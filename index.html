@@ -5,7 +5,174 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Chess — ELO Arena</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<style>
+:root {
+  --bg: #0a0a0f;
+  --surface: #12121a;
+  --border: #1e1e2e;
+  --light-sq: #e8d5b0;
+  --dark-sq: #8b5e3c;
+  --highlight: rgba(240,208,96,0.6);
+  --check: rgba(255,60,60,0.5);
+  --accent: #f0c060;
+  --text: #e8e0d0;
+  --muted: #888;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px;
+  background-image: radial-gradient(ellipse at 20% 20%, #1a1025 0%, transparent 50%),
+                    radial-gradient(ellipse at 80% 80%, #0d1a10 0%, transparent 50%);
+}
+header { text-align:center; margin-bottom:16px; }
+header h1 {
+  font-family:'Playfair Display',serif;
+  font-size:2rem; font-weight:900;
+  color:var(--accent);
+  text-shadow:0 0 40px rgba(240,192,96,0.3);
+}
+header p { color:var(--muted); font-size:0.7rem; letter-spacing:0.2em; text-transform:uppercase; margin-top:4px; }
+
+.layout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  max-width: 520px;
+}
+
+/* ELO Panel */
+.elo-panel {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:16px;
+  width:100%;
+}
+.elo-panel h2 { font-family:'Playfair Display',serif; font-size:0.9rem; color:var(--accent); margin-bottom:10px; }
+.elo-display { font-size:2rem; font-weight:600; color:var(--accent); text-align:center; margin:4px 0; transition:all 0.2s; }
+.elo-title { text-align:center; font-size:0.6rem; letter-spacing:0.15em; text-transform:uppercase; margin-bottom:10px; transition:color 0.3s; }
+input[type=range] {
+  width:100%; -webkit-appearance:none; height:4px; border-radius:2px;
+  background:linear-gradient(to right,#44aa44,#aaaa44,#aa4444); outline:none; margin:6px 0;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance:none; width:18px; height:18px; border-radius:50%;
+  background:var(--accent); cursor:pointer; box-shadow:0 0 8px rgba(240,192,96,0.5);
+}
+.elo-labels { display:flex; justify-content:space-between; font-size:0.6rem; color:var(--muted); }
+.presets {
+  display:grid; grid-template-columns:repeat(4,1fr); gap:5px; margin-top:10px;
+}
+.preset-btn {
+  padding:6px 4px; background:transparent; border:1px solid var(--border);
+  border-radius:6px; color:var(--text); font-family:'JetBrains Mono',monospace;
+  font-size:0.6rem; cursor:pointer; text-align:center; transition:all 0.15s;
+  display:flex; flex-direction:column; align-items:center; gap:2px;
+}
+.preset-btn span:first-child { font-size:0.9rem; }
+.preset-btn:hover { border-color:var(--accent); color:var(--accent); background:rgba(240,192,96,0.06); }
+.btn-start {
+  width:100%; margin-top:12px; padding:12px;
+  background:var(--accent); color:#000; border:none; border-radius:8px;
+  font-family:'JetBrains Mono',monospace; font-weight:600; font-size:0.85rem;
+  letter-spacing:0.1em; cursor:pointer; text-transform:uppercase; transition:all 0.2s;
+}
+.btn-start:hover { background:#ffd070; }
+
+/* Board area */
+.board-area { width:100%; display:flex; flex-direction:column; align-items:center; }
+.cap-row { font-size:1rem; min-height:22px; letter-spacing:2px; color:#888; text-align:center; margin:2px 0; }
+
+.board-outer { display:flex; align-items:center; gap:4px; }
+.rank-labels { display:flex; flex-direction:column; }
+.rank-label { font-size:0.6rem; color:#555; display:flex; align-items:center; justify-content:center; }
+
+.file-labels { display:flex; }
+.file-label { font-size:0.6rem; color:#555; text-align:center; }
+
+#chessboard {
+  display:grid;
+  grid-template-columns:repeat(8,1fr);
+  border:2px solid #333;
+  border-radius:3px;
+  overflow:hidden;
+  box-shadow:0 10px 40px rgba(0,0,0,0.6);
+}
+
+.sq {
+  aspect-ratio:1;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; position:relative;
+  transition:filter 0.1s;
+  user-select:none;
+  -webkit-user-select:none;
+  -webkit-tap-highlight-color:transparent;
+}
+.sq .piece { pointer-events:none; line-height:1; }
+.sq.light { background:var(--light-sq); }
+.sq.dark  { background:var(--dark-sq); }
+.sq.selected { background:var(--highlight) !important; }
+.sq.last-move { background:rgba(100,220,100,0.35) !important; }
+.sq.in-check  { background:var(--check) !important; }
+.sq.legal-dot::after {
+  content:''; position:absolute;
+  width:30%; height:30%; border-radius:50%;
+  background:rgba(0,0,0,0.25); pointer-events:none;
+}
+.sq.legal-cap::after {
+  content:''; position:absolute; inset:0;
+  border:3px solid rgba(0,0,0,0.25); pointer-events:none;
+}
+.sq:hover { filter:brightness(1.12); }
+
+.think-bar { width:100%; height:3px; background:var(--border); border-radius:2px; margin-top:6px; overflow:hidden; }
+.think-fill { height:100%; background:var(--accent); width:0%; border-radius:2px; }
+
+/* Status */
+.status-panel {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:12px; padding:14px; width:100%;
+}
+.status-panel h2 { font-family:'Playfair Display',serif; font-size:0.9rem; color:var(--accent); margin-bottom:10px; }
+.turn-row { display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:8px; background:var(--border); margin-bottom:8px; font-size:0.72rem; }
+.turn-dot { width:11px; height:11px; border-radius:50%; border:2px solid #444; flex-shrink:0; }
+#game-status {
+  font-size:0.72rem; padding:8px; border-radius:6px; background:var(--border);
+  text-align:center; min-height:34px; display:flex; align-items:center; justify-content:center;
+}
+.move-list { max-height:120px; overflow-y:auto; font-size:0.65rem; line-height:1.9; color:var(--muted); margin-top:8px; }
+.move-list::-webkit-scrollbar { width:2px; }
+.move-list::-webkit-scrollbar-thumb { background:var(--border); }
+.move-row { display:flex; gap:4px; }
+.move-num { color:#555; min-width:22px; }
+.move-w,.move-b { min-width:55px; }
+
+/* Modal */
+.modal-overlay {
+  display:none; position:fixed; inset:0;
+  background:rgba(0,0,0,0.7); z-index:999;
+  align-items:center; justify-content:center;
+  backdrop-filter:blur(4px);
+}
+.modal-overlay.show { display:flex; }
+.modal {
+  background:var(--surface); border:1px solid var(--border); border-radius:16px;
+  padding:28px; text-align:center; max-width:300px; width:90%;
+  box-shadow:0 20px 60px rgba(0,0,0,0.8);
+}
+.modal h2 { font-family:'Playfair Display',serif; font-size:1.6rem; color:var(--accent); margin-bottom:6px; }
+.modal p { color:var(--muted); font-size:0.75rem; margin-bottom:18px; }
+.modal .btn-start { width:auto; padding:10px 24px; display:inline-block; }
+</style>
 </head>
 <body>
 
@@ -14,57 +181,356 @@
   <p>Challenge any strength — 400 to 3200</p>
 </header>
 
-<div class="game-container">
+<div class="layout">
 
+  <!-- ELO Panel -->
   <div class="elo-panel">
     <h2>⚙ Opponent</h2>
     <div class="elo-display" id="elo-num">1200</div>
-    <div class="elo-title" id="elo-title" style="color:#aaa88a">Intermediate</div>
+    <div class="elo-title" id="elo-title">Intermediate</div>
     <input type="range" id="elo-slider" min="400" max="3200" value="1200" step="50">
     <div class="elo-labels"><span>400</span><span>3200</span></div>
     <div class="presets">
-      <button class="preset-btn" onclick="setElo(400)"><span>🟢 Beginner</span><span>400</span></button>
-      <button class="preset-btn" onclick="setElo(800)"><span>🟡 Casual</span><span>800</span></button>
-      <button class="preset-btn" onclick="setElo(1200)"><span>🟠 Club</span><span>1200</span></button>
-      <button class="preset-btn" onclick="setElo(1600)"><span>🔴 Expert</span><span>1600</span></button>
-      <button class="preset-btn" onclick="setElo(2000)"><span>🟣 Master</span><span>2000</span></button>
-      <button class="preset-btn" onclick="setElo(2500)"><span>⚫ GM</span><span>2500</span></button>
-      <button class="preset-btn" onclick="setElo(3200)"><span>💠 Magnus</span><span>3200</span></button>
+      <button class="preset-btn" onclick="setElo(400)"><span>🟢</span><span>400</span></button>
+      <button class="preset-btn" onclick="setElo(800)"><span>🟡</span><span>800</span></button>
+      <button class="preset-btn" onclick="setElo(1200)"><span>🟠</span><span>1200</span></button>
+      <button class="preset-btn" onclick="setElo(1600)"><span>🔴</span><span>1600</span></button>
+      <button class="preset-btn" onclick="setElo(2000)"><span>🟣</span><span>2000</span></button>
+      <button class="preset-btn" onclick="setElo(2500)"><span>⚫</span><span>2500</span></button>
+      <button class="preset-btn" onclick="setElo(2800)"><span>🔷</span><span>2800</span></button>
+      <button class="preset-btn" onclick="setElo(3200)"><span>💠</span><span>3200</span></button>
     </div>
-    <button class="btn-start" onclick="startGame()">▶ New Game</button>
+    <button class="btn-start" id="new-game-btn">▶ NEW GAME</button>
   </div>
 
-  <div class="board-wrap">
-    <div class="captured-row" id="cap-black"></div>
-    <div class="board-coords-top" id="files-top"></div>
-    <div id="board-rows"></div>
-    <div class="board-coords-bottom" id="files-bot"></div>
-    <div class="captured-row" id="cap-white"></div>
-    <div class="thinking-bar"><div class="thinking-fill" id="think-bar"></div></div>
+  <!-- Board -->
+  <div class="board-area">
+    <div class="cap-row" id="cap-black"></div>
+    <div id="file-top" class="file-labels" style="margin-left:20px;"></div>
+    <div class="board-outer">
+      <div class="rank-labels" id="rank-labels"></div>
+      <div id="chessboard"></div>
+    </div>
+    <div id="file-bot" class="file-labels" style="margin-left:20px;"></div>
+    <div class="cap-row" id="cap-white"></div>
+    <div class="think-bar"><div class="think-fill" id="think-fill"></div></div>
   </div>
 
+  <!-- Status -->
   <div class="status-panel">
     <h2>📋 Game</h2>
-    <div class="turn-indicator">
-      <div class="turn-dot" id="turn-dot" style="background:#eee; border-color:#eee"></div>
+    <div class="turn-row">
+      <div class="turn-dot" id="turn-dot"></div>
       <span id="turn-text">White to move</span>
     </div>
-    <div id="game-status">Start a new game!</div>
-    <br>
-    <div style="font-size:0.65rem;color:#555;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;">Move History</div>
+    <div id="game-status">Press NEW GAME to start!</div>
     <div class="move-list" id="move-list"></div>
   </div>
 
 </div>
 
+<!-- Modal -->
 <div class="modal-overlay" id="modal">
   <div class="modal">
     <h2 id="modal-title">Game Over</h2>
-    <p id="modal-msg">The game has ended.</p>
+    <p id="modal-msg"></p>
     <button class="btn-start" onclick="closeModal();startGame()">▶ Play Again</button>
   </div>
 </div>
 
-<script src="chess.js"></script>
-</body>
-</html>
+<script>
+// ================================================================
+// CHESS ENGINE
+// ================================================================
+
+const GLYPHS = {wK:'♔',wQ:'♕',wR:'♖',wB:'♗',wN:'♘',wP:'♙',bK:'♚',bQ:'♛',bR:'♜',bB:'♝',bN:'♞',bP:'♟'};
+const FILES = 'abcdefgh';
+const RANKS = '87654321';
+
+let G = {}; // game state
+
+function newState() {
+  const b = Array(64).fill(null);
+  const back = ['R','N','B','Q','K','B','N','R'];
+  for(let i=0;i<8;i++){
+    b[i]='b'+back[i]; b[8+i]='bP';
+    b[48+i]='wP'; b[56+i]='w'+back[i];
+  }
+  return {
+    board:b, turn:'w', sel:null, legal:[],
+    ep:-1, cr:{wK:true,wQ:true,bK:true,bQ:true},
+    lastFrom:-1, lastTo:-1, over:false,
+    history:[], capW:[], capB:[], elo:1200
+  };
+}
+
+const ri = (r,c) => r*8+c;
+const rr = i => Math.floor(i/8);
+const rc = i => i%8;
+const pc = p => p?p[0]:null;
+const op = c => c==='w'?'b':'w';
+
+function pseudoMoves(b,pos,ep,cr){
+  const p=b[pos]; if(!p) return [];
+  const c=pc(p),t=p[1],r=rr(pos),f=rc(pos),mv=[];
+
+  const push=(to,sp='')=>{
+    if(to<0||to>63)return;
+    if(pc(b[to])===c)return;
+    mv.push({from:pos,to,sp});
+  };
+  const slide=(dr,dc)=>{
+    for(let i=1;i<8;i++){
+      const nr=r+dr*i,nc=f+dc*i;
+      if(nr<0||nr>7||nc<0||nc>7)break;
+      const ni=ri(nr,nc);
+      if(pc(b[ni])===c)break;
+      mv.push({from:pos,to:ni,sp:''});
+      if(b[ni])break;
+    }
+  };
+
+  if(t==='P'){
+    const d=c==='w'?-1:1,sr=c==='w'?6:1,pr=c==='w'?0:7;
+    const fw=ri(r+d,f);
+    if(fw>=0&&fw<64&&!b[fw]){
+      if(rr(fw)===pr)['Q','R','B','N'].forEach(x=>mv.push({from:pos,to:fw,sp:'p'+x}));
+      else{
+        mv.push({from:pos,to:fw,sp:''});
+        const dw=ri(r+d*2,f);
+        if(r===sr&&!b[dw])mv.push({from:pos,to:dw,sp:'dp'});
+      }
+    }
+    [-1,1].forEach(dc=>{
+      const nc=f+dc; if(nc<0||nc>7)return;
+      const ct=ri(r+d,nc);
+      if(b[ct]&&pc(b[ct])===op(c)){
+        if(rr(ct)===pr)['Q','R','B','N'].forEach(x=>mv.push({from:pos,to:ct,sp:'p'+x}));
+        else mv.push({from:pos,to:ct,sp:''});
+      }
+      if(ct===ep)mv.push({from:pos,to:ct,sp:'ep'});
+    });
+  }
+  if(t==='N')[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]].forEach(([dr,dc])=>{
+    const nr=r+dr,nc=f+dc;
+    if(nr>=0&&nr<8&&nc>=0&&nc<8)push(ri(nr,nc));
+  });
+  if(t==='B'||t==='Q')[[-1,-1],[-1,1],[1,-1],[1,1]].forEach(([dr,dc])=>slide(dr,dc));
+  if(t==='R'||t==='Q')[[-1,0],[1,0],[0,-1],[0,1]].forEach(([dr,dc])=>slide(dr,dc));
+  if(t==='K'){
+    [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]].forEach(([dr,dc])=>{
+      const nr=r+dr,nc=f+dc;
+      if(nr>=0&&nr<8&&nc>=0&&nc<8)push(ri(nr,nc));
+    });
+    if(cr){
+      if(c==='w'&&r===7&&cr.wK&&!b[ri(7,5)]&&!b[ri(7,6)]&&!att(b,ri(7,4),'b')&&!att(b,ri(7,5),'b')&&!att(b,ri(7,6),'b'))mv.push({from:pos,to:ri(7,6),sp:'cas'});
+      if(c==='w'&&r===7&&cr.wQ&&!b[ri(7,3)]&&!b[ri(7,2)]&&!b[ri(7,1)]&&!att(b,ri(7,4),'b')&&!att(b,ri(7,3),'b')&&!att(b,ri(7,2),'b'))mv.push({from:pos,to:ri(7,2),sp:'cas'});
+      if(c==='b'&&r===0&&cr.bK&&!b[ri(0,5)]&&!b[ri(0,6)]&&!att(b,ri(0,4),'w')&&!att(b,ri(0,5),'w')&&!att(b,ri(0,6),'w'))mv.push({from:pos,to:ri(0,6),sp:'cas'});
+      if(c==='b'&&r===0&&cr.bQ&&!b[ri(0,3)]&&!b[ri(0,2)]&&!b[ri(0,1)]&&!att(b,ri(0,4),'w')&&!att(b,ri(0,3),'w')&&!att(b,ri(0,2),'w'))mv.push({from:pos,to:ri(0,2),sp:'cas'});
+    }
+  }
+  return mv;
+}
+
+function att(b,sq,by){
+  for(let i=0;i<64;i++)if(pc(b[i])===by&&pseudoMoves(b,i,-1,null).some(m=>m.to===sq))return true;
+  return false;
+}
+
+function king(b,c){ return b.findIndex(p=>p===c+'K'); }
+
+function doMove(b,m,epR,crR){
+  const nb=[...b],p=nb[m.from],c=pc(p);
+  if(m.sp==='cas'){
+    nb[m.to]=nb[m.from];nb[m.from]=null;
+    if(m.to===ri(7,6)){nb[ri(7,5)]=nb[ri(7,7)];nb[ri(7,7)]=null;}
+    else if(m.to===ri(7,2)){nb[ri(7,3)]=nb[ri(7,0)];nb[ri(7,0)]=null;}
+    else if(m.to===ri(0,6)){nb[ri(0,5)]=nb[ri(0,7)];nb[ri(0,7)]=null;}
+    else if(m.to===ri(0,2)){nb[ri(0,3)]=nb[ri(0,0)];nb[ri(0,0)]=null;}
+  } else if(m.sp==='ep'){
+    nb[m.to]=nb[m.from];nb[m.from]=null;
+    nb[ri(c==='w'?rr(m.to)+1:rr(m.to)-1,rc(m.to))]=null;
+  } else if(m.sp&&m.sp[0]==='p'){
+    nb[m.to]=c+m.sp[1];nb[m.from]=null;
+  } else {
+    nb[m.to]=nb[m.from];nb[m.from]=null;
+  }
+  if(epR!==null)epR.v=(p[1]==='P'&&Math.abs(m.from-m.to)===16)?(c==='w'?m.to+8:m.to-8):-1;
+  if(crR!==null){
+    crR.wK=crR.wK&&!(m.from===ri(7,4)||m.from===ri(7,7)||m.to===ri(7,7));
+    crR.wQ=crR.wQ&&!(m.from===ri(7,4)||m.from===ri(7,0)||m.to===ri(7,0));
+    crR.bK=crR.bK&&!(m.from===ri(0,4)||m.from===ri(0,7)||m.to===ri(0,7));
+    crR.bQ=crR.bQ&&!(m.from===ri(0,4)||m.from===ri(0,0)||m.to===ri(0,0));
+  }
+  return nb;
+}
+
+function legalFor(b,pos,ep,cr){
+  return pseudoMoves(b,pos,ep,cr).filter(m=>{
+    const nb=doMove(b,m,null,null);
+    return !att(nb,king(nb,pc(b[pos])),op(pc(b[pos])));
+  });
+}
+
+function allLegal(b,c,ep,cr){
+  const all=[];
+  for(let i=0;i<64;i++)if(pc(b[i])===c)legalFor(b,i,ep,cr).forEach(m=>all.push(m));
+  return all;
+}
+
+// ── Evaluation ─────────────────────────────────────────
+const VAL={P:100,N:320,B:330,R:500,Q:900,K:20000};
+const PST={
+  P:[0,0,0,0,0,0,0,0,50,50,50,50,50,50,50,50,10,10,20,30,30,20,10,10,5,5,10,25,25,10,5,5,0,0,0,20,20,0,0,0,5,-5,-10,0,0,-10,-5,5,5,10,10,-20,-20,10,10,5,0,0,0,0,0,0,0,0],
+  N:[-50,-40,-30,-30,-30,-30,-40,-50,-40,-20,0,0,0,0,-20,-40,-30,0,10,15,15,10,0,-30,-30,5,15,20,20,15,5,-30,-30,0,15,20,20,15,0,-30,-30,5,10,15,15,10,5,-30,-40,-20,0,5,5,0,-20,-40,-50,-40,-30,-30,-30,-30,-40,-50],
+  B:[-20,-10,-10,-10,-10,-10,-10,-20,-10,0,0,0,0,0,0,-10,-10,0,5,10,10,5,0,-10,-10,5,5,10,10,5,5,-10,-10,0,10,10,10,10,0,-10,-10,10,10,10,10,10,10,-10,-10,5,0,0,0,0,5,-10,-20,-10,-10,-10,-10,-10,-10,-20],
+  R:[0,0,0,0,0,0,0,0,5,10,10,10,10,10,10,5,-5,0,0,0,0,0,0,-5,-5,0,0,0,0,0,0,-5,-5,0,0,0,0,0,0,-5,-5,0,0,0,0,0,0,-5,-5,0,0,0,0,0,0,-5,0,0,0,5,5,0,0,0],
+  Q:[-20,-10,-10,-5,-5,-10,-10,-20,-10,0,0,0,0,0,0,-10,-10,0,5,5,5,5,0,-10,-5,0,5,5,5,5,0,-5,0,0,5,5,5,5,0,-5,-10,5,5,5,5,5,0,-10,-10,0,5,0,0,0,0,-10,-20,-10,-10,-5,-5,-10,-10,-20],
+  K:[-30,-40,-40,-50,-50,-40,-40,-30,-30,-40,-40,-50,-50,-40,-40,-30,-30,-40,-40,-50,-50,-40,-40,-30,-30,-40,-40,-50,-50,-40,-40,-30,-20,-30,-30,-40,-40,-30,-30,-20,-10,-20,-20,-20,-20,-20,-20,-10,20,20,0,0,0,0,20,20,20,30,10,0,0,10,30,20]
+};
+
+function evalBoard(b){
+  let s=0;
+  for(let i=0;i<64;i++){
+    const p=b[i];if(!p)continue;
+    const c=p[0],t=p[1],v=(VAL[t]||0)+(PST[t]?(c==='w'?PST[t][i]:PST[t][63-i]):0);
+    s+=c==='w'?v:-v;
+  }
+  return s;
+}
+
+// ── AI ──────────────────────────────────────────────────
+function depth(elo){return elo<600?1:elo<900?2:elo<1400?3:elo<2000?4:elo<2600?5:6;}
+function randChance(elo){return elo<600?.8:elo<900?.5:elo<1200?.3:elo<1600?.15:elo<2000?.05:0;}
+
+function minimax(b,d,alpha,beta,max,ep,cr){
+  if(d===0)return evalBoard(b);
+  const c=max?'w':'b';
+  const moves=allLegal(b,c,ep,cr);
+  if(!moves.length){
+    const k=king(b,c);
+    return att(b,k,op(c))?(max?-50000+d:50000-d):0;
+  }
+  moves.sort((a,b2)=>(b[b2.to]?1:0)-(b[a.to]?1:0));
+  let best=max?-Infinity:Infinity;
+  for(const m of moves){
+    const er={v:-1},cr2={...cr};
+    const nb=doMove(b,m,er,cr2);
+    const s=minimax(nb,d-1,alpha,beta,!max,er.v,cr2);
+    if(max){if(s>best)best=s;alpha=Math.max(alpha,s);}
+    else{if(s<best)best=s;beta=Math.min(beta,s);}
+    if(beta<=alpha)break;
+  }
+  return best;
+}
+
+function bestMove(b,c,ep,cr,elo){
+  const moves=allLegal(b,c,ep,cr);
+  if(!moves.length)return null;
+  if(Math.random()<randChance(elo))return moves[Math.floor(Math.random()*moves.length)];
+  const max=(c==='w');
+  let best=null,bs=max?-Infinity:Infinity;
+  const sh=[...moves].sort(()=>Math.random()-.5);
+  for(const m of sh){
+    const er={v:-1},cr2={...cr};
+    const nb=doMove(b,m,er,cr2);
+    const s=minimax(nb,depth(elo)-1,-Infinity,Infinity,!max,er.v,cr2);
+    if(max?s>bs:s<bs){bs=s;best=m;}
+  }
+  return best;
+}
+
+// ── Render ──────────────────────────────────────────────
+function calcSqSize(){
+  const maxW = Math.min(window.innerWidth - 40, 520);
+  return Math.floor(maxW / 8);
+}
+
+function buildBoard(){
+  const cb=document.getElementById('chessboard');
+  const sz=calcSqSize();
+  cb.style.width=(sz*8)+'px';
+  cb.style.height=(sz*8)+'px';
+  cb.style.gridTemplateColumns=`repeat(8,${sz}px)`;
+  cb.style.gridTemplateRows=`repeat(8,${sz}px)`;
+
+  // rank labels
+  const rl=document.getElementById('rank-labels');
+  rl.innerHTML='';
+  for(let r=0;r<8;r++){
+    const d=document.createElement('div');
+    d.className='rank-label';
+    d.style.height=sz+'px';
+    d.style.width='18px';
+    d.textContent=8-r;
+    rl.appendChild(d);
+  }
+
+  // file labels
+  ['file-top','file-bot'].forEach(id=>{
+    const el=document.getElementById(id);
+    el.innerHTML='';
+    el.style.width=(sz*8)+'px';
+    for(let f=0;f<8;f++){
+      const d=document.createElement('div');
+      d.className='file-label';
+      d.style.width=sz+'px';
+      d.textContent=FILES[f];
+      el.appendChild(d);
+    }
+  });
+
+  // squares
+  cb.innerHTML='';
+  for(let i=0;i<64;i++){
+    const sq=document.createElement('div');
+    const r=rr(i),f=rc(i);
+    sq.className='sq '+((r+f)%2===0?'light':'dark');
+    sq.style.width=sz+'px';
+    sq.style.height=sz+'px';
+    sq.style.fontSize=Math.floor(sz*0.72)+'px';
+    sq.dataset.i=i;
+    sq.addEventListener('click',()=>handleClick(i));
+    cb.appendChild(sq);
+  }
+}
+
+function renderPieces(){
+  const {board:b,sel,legal,lastFrom:lf,lastTo:lt,over,ep}=G;
+  const squares=document.querySelectorAll('#chessboard .sq');
+
+  squares.forEach((sq,i)=>{
+    const p=b[i];
+    // reset classes
+    sq.className='sq '+((rr(i)+rc(i))%2===0?'light':'dark');
+
+    if((i===lf||i===lt)&&i!==sel) sq.classList.add('last-move');
+    if(i===sel) sq.classList.add('selected');
+    if(legal.some(m=>m.to===i)) sq.classList.add(b[i]?'legal-cap':'legal-dot');
+    if(p&&p[1]==='K'&&!over&&att(b,i,op(p[0]))) sq.classList.add('in-check');
+
+    // piece
+    let inner=sq.querySelector('.piece');
+    if(!inner){inner=document.createElement('span');inner.className='piece';sq.appendChild(inner);}
+    inner.textContent=p?GLYPHS[p]:'';
+  });
+
+  document.getElementById('cap-black').textContent=G.capB.map(p=>GLYPHS[p]).join('');
+  document.getElementById('cap-white').textContent=G.capW.map(p=>GLYPHS[p]).join('');
+}
+
+function updateStatus(){
+  const {board:b,turn,ep,cr}=G;
+  const moves=allLegal(b,turn,ep,cr);
+  const k=king(b,turn);
+  const check=att(b,k,op(turn));
+  const dot=document.getElementById('turn-dot');
+  const txt=document.getElementById('turn-text');
+  const st=document.getElementById('game-status');
+
+  if(!moves.length){
+    G.over=true;
+    if(check){
+      const w=op(turn)==='w'?'White':'Black';
+      st.textContent=`☑ Checkmate! ${w} wins!`;
+      txt.tex
