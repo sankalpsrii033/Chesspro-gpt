@@ -1,26 +1,23 @@
 /* ============================================
-   FOOD FIGHT ARENA – game.js
+   FOOD FIGHT ARENA – game.js (CORRECTED)
    Complete local multiplayer party shooter.
    ============================================ */
 
 // -------------------- CONFIGURATION --------------------
-const GAME_WIDTH  = 1920;       // virtual resolution (scaled to canvas)
+const GAME_WIDTH  = 1920;
 const GAME_HEIGHT = 1080;
 const PLAYER_SPEED = 320;
-const PROJECTILE_GRAVITY = 0;   // top-down, no gravity
-const FOOD_COOLDOWN_BASE = 0.6; // seconds
-const MAX_POWERUP_DURATION = 10; // seconds
+const FOOD_COOLDOWN_BASE = 0.6;
+const MAX_POWERUP_DURATION = 10;
 
-// Food weapon definitions (core data)
 const FOOD_TYPES = {
   TOMATO:    { name: "Tomato",   damage: 25, speed: 700, splashRadius: 40,  special: "splash",   cooldown: 1.0,  icon: "🍅" },
   EGG:       { name: "Egg",      damage: 15, speed: 600, splashRadius: 0,    special: "blur",     cooldown: 0.8,  icon: "🥚" },
   BURGER:    { name: "Burger",   damage: 40, speed: 500, splashRadius: 0,    special: "heavy",    cooldown: 2.0,  icon: "🍔" },
   BANANA:    { name: "Banana",   damage: 10, speed: 650, splashRadius: 25,   special: "peel",     cooldown: 1.5,  icon: "🍌" },
-  WATERMELON:{ name: "Watermelon",damage: 50, speed: 400, splashRadius: 80,   special: "megaSplash",cooldown: 3.0,  icon: "🍉" }
+  WATERMELON:{ name: "Watermelon",damage: 50, speed: 400, splashRadius: 80,  special: "megaSplash",cooldown: 3.0,  icon: "🍉" }
 };
 
-// Power-up definitions
 const POWERUP_TYPES = {
   SPEED:    { name: "Speed Boost",   color: "#00d2ff", icon: "⚡", duration: 10 },
   SHIELD:   { name: "Shield",        color: "#a29bfe", icon: "🛡️", duration: 10 },
@@ -33,37 +30,36 @@ const POWERUP_TYPES = {
 // -------------------- GLOBALS --------------------
 let canvas, ctx;
 let minimapCanvas, minimapCtx;
-let game;                      // current game instance
+let game = null;
 let currentScreen = "mainMenu";
 let roomCode = "AAAA";
-let gameSettings = { map: "School Cafeteria", players: 2, bots: 2 }; // local settings
+let gameSettings = { map: "School Cafeteria", players: 2, bots: 2 };
 
-// Input state
 const keys = {};
 const mouse = { x: 0, y: 0, down: false };
 let touchJoystickActive = false;
 let touchJoystickDir = { x: 0, y: 0 };
 let touchShootPressed = false;
 
-// UI references
+// UI element references
 const screens = {
-  mainMenu:      document.getElementById("mainMenu"),
-  profilePanel:  document.getElementById("profilePanel"),
-  cosmeticsPanel:document.getElementById("cosmeticsPanel"),
-  settingsPanel: document.getElementById("settingsPanel"),
-  lobbyScreen:   document.getElementById("lobbyScreen"),
-  gameHUD:       document.getElementById("gameHUD"),
+  mainMenu:       document.getElementById("mainMenu"),
+  profilePanel:   document.getElementById("profilePanel"),
+  cosmeticsPanel: document.getElementById("cosmeticsPanel"),
+  settingsPanel:  document.getElementById("settingsPanel"),
+  lobbyScreen:    document.getElementById("lobbyScreen"),
+  gameHUD:        document.getElementById("gameHUD"),
   postMatchScreen:document.getElementById("postMatchScreen"),
   matchCountdown: document.getElementById("matchCountdown"),
   countdownNumber:document.getElementById("countdownNumber"),
   disconnectOverlay:document.getElementById("disconnectOverlay"),
-  victoryBanner: document.getElementById("victoryBanner"),
-  defeatBanner:  document.getElementById("defeatBanner"),
+  victoryBanner:  document.getElementById("victoryBanner"),
+  defeatBanner:   document.getElementById("defeatBanner"),
   spectatorBanner:document.getElementById("spectatorBanner"),
-  emoteWheel:    document.getElementById("emoteWheel")
+  emoteWheel:     document.getElementById("emoteWheel")
 };
 
-// -------------------- UI HELPER FUNCTIONS --------------------
+// -------------------- UI HELPERS --------------------
 function showScreen(screenName) {
   Object.values(screens).forEach(el => el?.classList?.remove("active"));
   if (screens[screenName]) screens[screenName].classList.add("active");
@@ -74,28 +70,29 @@ function hideAllScreens() {
   Object.values(screens).forEach(el => el?.classList?.remove("active"));
 }
 
-// Update HUD elements during gameplay
+/** Update HUD – uses localPlayerId to find the actual player object */
 function updateHUD() {
-  if (!game || !game.localPlayer) return;
-  const p = game.localPlayer;
-  document.getElementById("healthBarFill").style.width = `${p.health}%`;
+  if (!game || !game.localPlayerId) return;
+  const p = game.players.find(pl => pl.id === game.localPlayerId);
+  if (!p) return;
+
+  document.getElementById("healthBarFill").style.width = `${Math.max(0, p.health)}%`;
   document.getElementById("healthText").textContent = `${Math.round(p.health)} HP`;
   const weapon = FOOD_TYPES[p.currentFood] || FOOD_TYPES.TOMATO;
   document.querySelector("#currentWeapon .weapon-icon").textContent = weapon.icon;
   document.getElementById("weaponName").textContent = weapon.name;
   document.getElementById("matchTimer").textContent = formatTime(game.matchTime);
   document.getElementById("playersAlive").textContent = `👥 ${game.alivePlayers} left`;
-  document.getElementById("pingDisplay").textContent = "🟢 32ms"; // fake
+  document.getElementById("pingDisplay").textContent = "🟢 32ms";
   document.getElementById("cooldownFill").style.height = `${(1 - p.cooldownTimer / weapon.cooldown) * 100}%`;
 }
 
 function formatTime(seconds) {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
+  const m = Math.floor(Math.max(0, seconds) / 60);
+  const s = Math.floor(Math.max(0, seconds) % 60);
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-// Kill feed
 function addKillMessage(attackerName, victimName, weapon) {
   const feed = document.getElementById("killFeed");
   const entry = document.createElement("div");
@@ -105,7 +102,7 @@ function addKillMessage(attackerName, victimName, weapon) {
   setTimeout(() => entry.remove(), 4000);
 }
 
-// -------------------- INPUT HANDLING --------------------
+// -------------------- INPUT --------------------
 function setupInput() {
   window.addEventListener("keydown", e => keys[e.key] = true);
   window.addEventListener("keyup", e => keys[e.key] = false);
@@ -119,8 +116,6 @@ function setupInput() {
   canvas.addEventListener("mousedown", e => { if (e.button === 0) mouse.down = true; });
   canvas.addEventListener("mouseup", e => { if (e.button === 0) mouse.down = false; });
   canvas.addEventListener("contextmenu", e => e.preventDefault());
-
-  // Touch controls (mobile)
   canvas.addEventListener("touchstart", handleTouchStart);
   canvas.addEventListener("touchmove", handleTouchMove);
   canvas.addEventListener("touchend", handleTouchEnd);
@@ -134,13 +129,10 @@ function handleTouchStart(e) {
   for (let touch of e.changedTouches) {
     const tx = (touch.clientX - rect.left) * scaleX;
     const ty = (touch.clientY - rect.top) * scaleY;
-    // Left half of screen = joystick area
     if (tx < GAME_WIDTH * 0.4) {
       touchJoystickActive = true;
       touchJoystickDir = { x: 0, y: 0 };
-      // Store touch identifier (simplified)
     } else if (tx > GAME_WIDTH * 0.6 && ty > GAME_HEIGHT * 0.5) {
-      // Right bottom = shoot button
       touchShootPressed = true;
     }
   }
@@ -177,7 +169,7 @@ function handleTouchEnd(e) {
   touchShootPressed = false;
 }
 
-// -------------------- PLAYER CLASS --------------------
+// -------------------- GAME CLASSES --------------------
 class Player {
   constructor(id, name, x, y, color, human = false) {
     this.id = id;
@@ -190,23 +182,19 @@ class Player {
     this.health = 100;
     this.maxHealth = 100;
     this.alive = true;
-    this.facingAngle = 0;        // radians
+    this.facingAngle = 0;
     this.currentFood = "TOMATO";
     this.cooldownTimer = 0;
     this.speedMultiplier = 1;
     this.damageMultiplier = 1;
     this.shieldActive = false;
-    this.activeEffects = {};    // keyed by power-up type
+    this.activeEffects = {};
     this.isSpectator = false;
   }
 
   update(dt) {
     if (!this.alive) return;
-    // Cooldown
-    const weapon = FOOD_TYPES[this.currentFood];
     if (this.cooldownTimer > 0) this.cooldownTimer -= dt;
-
-    // Update power-up timers
     for (let key in this.activeEffects) {
       this.activeEffects[key] -= dt;
       if (this.activeEffects[key] <= 0) {
@@ -238,7 +226,7 @@ class Player {
     if (this.health <= 0) {
       this.health = 0;
       this.alive = false;
-      return true; // eliminated
+      return true;
     }
     return false;
   }
@@ -248,7 +236,6 @@ class Player {
   }
 }
 
-// -------------------- PROJECTILE CLASS --------------------
 class Projectile {
   constructor(owner, x, y, angle, foodType) {
     this.owner = owner;
@@ -269,17 +256,14 @@ class Projectile {
   update(dt) {
     this.x += Math.cos(this.angle) * this.speed * dt;
     this.y += Math.sin(this.angle) * this.speed * dt;
-    // Check map boundaries
     if (this.x < 0 || this.x > GAME_WIDTH || this.y < 0 || this.y > GAME_HEIGHT) {
       this.alive = false;
     }
-    // Trail for visual
     this.trail.push({ x: this.x, y: this.y });
     if (this.trail.length > 5) this.trail.shift();
   }
 }
 
-// -------------------- POWER-UP PICKUP CLASS --------------------
 class PowerUpPickup {
   constructor(x, y, type) {
     this.x = x;
@@ -290,31 +274,29 @@ class PowerUpPickup {
   }
 }
 
-// -------------------- GAME CLASS --------------------
+// -------------------- MAIN GAME --------------------
 class Game {
   constructor(settings) {
     this.settings = settings;
     this.players = [];
     this.projectiles = [];
     this.powerUps = [];
-    this.matchTime = 180; // 3 minutes
+    this.matchTime = 180;
     this.matchOver = false;
-    this.localPlayerId = null;
+    this.localPlayerId = null;     // id of the human on this machine
     this.alivePlayers = 0;
-    this.powerUpSpawnTimer = 0;
-    this.mapName = settings.map;
+    this.powerUpSpawnTimer = 5;
   }
 
   init() {
-    // Create players: P1 human, P2 human (if local), plus bots
-    const humanCount = this.settings.players; // 2 for local multiplayer
     this.players = [];
     let id = 1;
-    // Player 1
+    // Player 1 (human, WASD + mouse)
     this.players.push(new Player(id, "Player 1", 400, 540, "#ff6b6b", true));
+    this.localPlayerId = id;
     id++;
-    // Player 2
-    if (humanCount >= 2) {
+    // Player 2 (human, arrows + space)
+    if (this.settings.players >= 2) {
       this.players.push(new Player(id, "Player 2", 1520, 540, "#54a0ff", true));
       id++;
     }
@@ -326,7 +308,6 @@ class Game {
       this.players.push(new Player(id, botNames[i % botNames.length], spawnX, spawnY, "#feca57", false));
       id++;
     }
-    this.localPlayerId = 1; // assume Player 1 is local (for HUD)
     this.alivePlayers = this.players.length;
   }
 
@@ -339,38 +320,25 @@ class Game {
       return;
     }
 
-    // Update players (movement, cooldowns)
     this.players.forEach(p => p.update(dt));
-
-    // Handle input for human players
     this.handleHumanInput(dt);
-
-    // AI movement
     this.updateAI(dt);
 
-    // Update projectiles and collisions
     this.projectiles.forEach(p => p.update(dt));
     this.checkProjectileHits();
-
-    // Remove dead projectiles
     this.projectiles = this.projectiles.filter(p => p.alive);
 
-    // Spawn power-ups
     this.powerUpSpawnTimer -= dt;
     if (this.powerUpSpawnTimer <= 0) {
       this.spawnRandomPowerUp();
-      this.powerUpSpawnTimer = 8 + Math.random() * 5; // 8-13s
+      this.powerUpSpawnTimer = 8 + Math.random() * 5;
     }
-
-    // Check power-up pickups
     this.checkPowerUpCollisions();
 
-    // Update alive count
     this.alivePlayers = this.players.filter(p => p.alive).length;
     if (this.alivePlayers <= 1) this.endMatch();
 
-    // Update HUD if local player exists
-    if (this.localPlayerId) updateHUD();
+    updateHUD();   // now works correctly
   }
 
   handleHumanInput(dt) {
@@ -378,49 +346,42 @@ class Game {
       if (!player.human || !player.alive) return;
       let moveX = 0, moveY = 0;
       let shoot = false;
-      let aimX, aimY;
 
       if (player.id === 1) {
-        // WASD + mouse / touch
         if (keys["w"] || keys["ArrowUp"]) moveY -= 1;
         if (keys["s"] || keys["ArrowDown"]) moveY += 1;
         if (keys["a"] || keys["ArrowLeft"]) moveX -= 1;
         if (keys["d"] || keys["ArrowRight"]) moveX += 1;
-        aimX = mouse.x;
-        aimY = mouse.y;
+        const aimX = mouse.x;
+        const aimY = mouse.y;
+        if (moveX !== 0 || moveY !== 0) {
+          const len = Math.sqrt(moveX*moveX + moveY*moveY);
+          moveX /= len;
+          moveY /= len;
+        }
+        player.x += moveX * player.getSpeed() * dt;
+        player.y += moveY * player.getSpeed() * dt;
+        player.facingAngle = Math.atan2(aimY - player.y, aimX - player.x);
         shoot = mouse.down || touchShootPressed;
       } else if (player.id === 2) {
-        // Arrow keys + Space (facing based on movement)
         if (keys["ArrowUp"]) moveY -= 1;
         if (keys["ArrowDown"]) moveY += 1;
         if (keys["ArrowLeft"]) moveX -= 1;
         if (keys["ArrowRight"]) moveX += 1;
         if (moveX !== 0 || moveY !== 0) {
           player.facingAngle = Math.atan2(moveY, moveX);
+          const len = Math.sqrt(moveX*moveX + moveY*moveY);
+          moveX /= len;
+          moveY /= len;
         }
-        aimX = player.x + Math.cos(player.facingAngle) * 100;
-        aimY = player.y + Math.sin(player.facingAngle) * 100;
-        shoot = keys[" "]; // space
+        player.x += moveX * player.getSpeed() * dt;
+        player.y += moveY * player.getSpeed() * dt;
+        shoot = keys[" "];
       }
 
-      // Normalize movement
-      if (moveX !== 0 || moveY !== 0) {
-        const len = Math.sqrt(moveX * moveX + moveY * moveY);
-        moveX /= len;
-        moveY /= len;
-      }
-      player.x += moveX * player.getSpeed() * dt;
-      player.y += moveY * player.getSpeed() * dt;
-      // Clamp to arena
       player.x = Math.max(player.radius, Math.min(GAME_WIDTH - player.radius, player.x));
       player.y = Math.max(player.radius, Math.min(GAME_HEIGHT - player.radius, player.y));
 
-      // Aim angle from mouse position for P1, or using facing for P2
-      if (player.id === 1) {
-        player.facingAngle = Math.atan2(aimY - player.y, aimX - player.x);
-      }
-
-      // Shoot if cooldown finished
       if (shoot && player.cooldownTimer <= 0) {
         this.spawnProjectile(player);
       }
@@ -430,26 +391,21 @@ class Game {
   updateAI(dt) {
     this.players.forEach(bot => {
       if (bot.human || !bot.alive) return;
-      // Simple AI: move toward nearest enemy
       const target = this.findNearestEnemy(bot);
       if (target) {
         const dx = target.x - bot.x;
         const dy = target.y - bot.y;
         const dist = Math.sqrt(dx*dx + dy*dy);
         if (dist > 200) {
-          const moveX = dx / dist;
-          const moveY = dy / dist;
-          bot.x += moveX * bot.getSpeed() * dt;
-          bot.y += moveY * bot.getSpeed() * dt;
+          bot.x += (dx / dist) * bot.getSpeed() * dt;
+          bot.y += (dy / dist) * bot.getSpeed() * dt;
         }
         bot.facingAngle = Math.atan2(dy, dx);
       }
-      // Shoot occasionally
       bot.cooldownTimer -= dt;
-      if (bot.cooldownTimer <= 0 && Math.random() < 0.02) { // ~2% chance per frame
+      if (bot.cooldownTimer <= 0 && Math.random() < 0.02) {
         this.spawnProjectile(bot);
       }
-      // Clamp
       bot.x = Math.max(bot.radius, Math.min(GAME_WIDTH - bot.radius, bot.x));
       bot.y = Math.max(bot.radius, Math.min(GAME_HEIGHT - bot.radius, bot.y));
     });
@@ -460,10 +416,7 @@ class Game {
     this.players.forEach(other => {
       if (other === player || !other.alive) return;
       const d = Math.hypot(other.x - player.x, other.y - player.y);
-      if (d < minDist) {
-        minDist = d;
-        nearest = other;
-      }
+      if (d < minDist) { minDist = d; nearest = other; }
     });
     return nearest;
   }
@@ -471,8 +424,7 @@ class Game {
   spawnProjectile(shooter) {
     const food = shooter.currentFood;
     const data = FOOD_TYPES[food];
-    const angle = shooter.facingAngle;
-    const proj = new Projectile(shooter, shooter.x, shooter.y, angle, food);
+    const proj = new Projectile(shooter, shooter.x, shooter.y, shooter.facingAngle, food);
     this.projectiles.push(proj);
     shooter.cooldownTimer = data.cooldown;
   }
@@ -485,18 +437,15 @@ class Game {
         const d = Math.hypot(proj.x - target.x, proj.y - target.y);
         const hitRadius = target.radius + (proj.splashRadius || proj.radius);
         if (d < hitRadius) {
-          // Hit!
           let damage = proj.damage;
           if (proj.splashRadius > 0 && d > proj.radius) {
-            damage *= (1 - (d - proj.radius) / proj.splashRadius);
+            damage *= 1 - (d - proj.radius) / proj.splashRadius;
           }
           const eliminated = target.takeDamage(damage, proj.owner);
           proj.alive = false;
           addKillMessage(proj.owner.name, target.name, FOOD_TYPES[proj.foodType].icon);
-          if (eliminated) {
-            target.alive = false;
-          }
-          break; // projectile disappears on first hit
+          if (eliminated) target.alive = false;
+          break;
         }
       }
     }
@@ -529,7 +478,6 @@ class Game {
     this.matchOver = true;
     const winner = this.players.find(p => p.alive);
     const localWon = this.localPlayerId && winner && winner.id === this.localPlayerId;
-    showScreen("gameHUD");
     if (localWon) {
       screens.victoryBanner.classList.remove("hidden");
     } else {
@@ -538,100 +486,69 @@ class Game {
     setTimeout(() => {
       screens.victoryBanner.classList.add("hidden");
       screens.defeatBanner.classList.add("hidden");
-      showPostMatch(winner, this.localPlayerId);
+      showPostMatch(winner);
     }, 2000);
   }
 }
 
 // -------------------- RENDERING --------------------
 function drawGame() {
-  if (!game || !ctx) return;
+  if (!ctx || !game) return;
   ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-
-  // Draw arena background
+  // Background
   ctx.fillStyle = "#2d3436";
   ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-  // Grid lines
   ctx.strokeStyle = "#636e72";
   ctx.lineWidth = 1;
   for (let x = 0; x < GAME_WIDTH; x += 80) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, GAME_HEIGHT);
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, GAME_HEIGHT); ctx.stroke();
   }
   for (let y = 0; y < GAME_HEIGHT; y += 80) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(GAME_WIDTH, y);
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(GAME_WIDTH, y); ctx.stroke();
   }
-
-  // Draw power-ups
+  // Power-ups
   game.powerUps.forEach(pu => {
     ctx.fillStyle = POWERUP_TYPES[pu.type].color;
-    ctx.beginPath();
-    ctx.arc(pu.x, pu.y, pu.radius, 0, Math.PI*2);
-    ctx.fill();
-    ctx.fillStyle = "white";
-    ctx.font = "20px Arial";
-    ctx.textAlign = "center";
+    ctx.beginPath(); ctx.arc(pu.x, pu.y, pu.radius, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = "white"; ctx.font = "20px Arial"; ctx.textAlign = "center";
     ctx.fillText(POWERUP_TYPES[pu.type].icon, pu.x, pu.y+8);
   });
-
-  // Draw projectiles
+  // Projectiles
   game.projectiles.forEach(proj => {
     ctx.fillStyle = "#fff";
-    ctx.beginPath();
-    ctx.arc(proj.x, proj.y, proj.radius, 0, Math.PI*2);
-    ctx.fill();
-    ctx.fillStyle = "black";
-    ctx.font = "12px Arial";
-    ctx.textAlign = "center";
+    ctx.beginPath(); ctx.arc(proj.x, proj.y, proj.radius, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = "black"; ctx.font = "12px Arial"; ctx.textAlign = "center";
     ctx.fillText(FOOD_TYPES[proj.foodType].icon, proj.x, proj.y+4);
   });
-
-  // Draw players
+  // Players
   game.players.forEach(player => {
     if (!player.alive) return;
     ctx.fillStyle = player.color;
-    ctx.beginPath();
-    ctx.arc(player.x, player.y, player.radius, 0, Math.PI*2);
-   ctx.fill();
-    // Eyes direction indicator
-    const eyeX = player.x + Math.cos(player.facingAngle) * 10;
-    const eyeY = player.y + Math.sin(player.facingAngle) * 10;
+    ctx.beginPath(); ctx.arc(player.x, player.y, player.radius, 0, Math.PI*2); ctx.fill();
+    const eyeX = player.x + Math.cos(player.facingAngle)*10;
+    const eyeY = player.y + Math.sin(player.facingAngle)*10;
     ctx.fillStyle = "white";
-    ctx.beginPath();
-    ctx.arc(eyeX, eyeY, 5, 0, Math.PI*2);
-    ctx.fill();
-    // Name label
-    ctx.fillStyle = "#fff";
-    ctx.font = "14px Nunito";
-    ctx.textAlign = "center";
-    ctx.fillText(player.name, player.x, player.y - 25);
-    // Health bar
+    ctx.beginPath(); ctx.arc(eyeX, eyeY, 5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = "#fff"; ctx.font = "14px Nunito"; ctx.textAlign = "center";
+    ctx.fillText(player.name, player.x, player.y-25);
     const barWidth = 40;
-    const barY = player.y - 15;
+    const barY = player.y-15;
     ctx.fillStyle = "red";
-    ctx.fillRect(player.x - barWidth/2, barY, barWidth, 4);
+    ctx.fillRect(player.x-barWidth/2, barY, barWidth, 4);
     ctx.fillStyle = "#2ed573";
-    ctx.fillRect(player.x - barWidth/2, barY, barWidth * (player.health/100), 4);
+    ctx.fillRect(player.x-barWidth/2, barY, barWidth*(player.health/100), 4);
   });
-
   // Minimap
   if (minimapCtx) {
-    minimapCtx.clearRect(0, 0, 120, 120);
+    minimapCtx.clearRect(0,0,120,120);
     minimapCtx.fillStyle = "rgba(0,0,0,0.5)";
-    minimapCtx.fillRect(0, 0, 120, 120);
+    minimapCtx.fillRect(0,0,120,120);
     game.players.forEach(p => {
       if (p.alive) {
-        const mx = (p.x / GAME_WIDTH) * 120;
-        const my = (p.y / GAME_HEIGHT) * 120;
+        const mx = (p.x/GAME_WIDTH)*120;
+        const my = (p.y/GAME_HEIGHT)*120;
         minimapCtx.fillStyle = p.color;
-        minimapCtx.beginPath();
-        minimapCtx.arc(mx, my, 3, 0, Math.PI*2);
-        minimapCtx.fill();
+        minimapCtx.beginPath(); minimapCtx.arc(mx,my,3,0,Math.PI*2); minimapCtx.fill();
       }
     });
   }
@@ -640,18 +557,14 @@ function drawGame() {
 // -------------------- GAME LOOP --------------------
 let lastTime = 0;
 function gameLoop(timestamp) {
-  const dt = Math.min((timestamp - lastTime) / 1000, 0.05); // cap delta
+  const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
   lastTime = timestamp;
-
-  if (game && !game.matchOver) {
-    game.update(dt);
-  }
+  if (game && !game.matchOver) game.update(dt);
   drawGame();
-
   requestAnimationFrame(gameLoop);
 }
 
-// -------------------- UI SCREEN ACTIONS --------------------
+// -------------------- UI ACTIONS --------------------
 function startMatchWithSettings() {
   hideAllScreens();
   game = new Game(gameSettings);
@@ -661,30 +574,45 @@ function startMatchWithSettings() {
   screens.matchCountdown.classList.remove("hidden");
   let count = 3;
   screens.countdownNumber.textContent = count;
-  const countdownInterval = setInterval(() => {
+  const interval = setInterval(() => {
     count--;
     if (count > 0) {
       screens.countdownNumber.textContent = count;
     } else {
-      clearInterval(countdownInterval);
+      clearInterval(interval);
       screens.matchCountdown.classList.add("hidden");
-      // game starts (already running)
     }
   }, 1000);
 }
 
-function showPostMatch(winner, localPlayerId) {
+function showPostMatch(winner) {
   hideAllScreens();
   showScreen("postMatchScreen");
   document.getElementById("resultTitle").textContent = winner ? `${winner.name} Wins!` : "Draw!";
-  // fake stats
   document.getElementById("resultElims").textContent = winner ? 3 : 0;
   document.getElementById("resultDamage").textContent = winner ? 850 : 200;
   document.getElementById("resultXP").textContent = "250";
   document.getElementById("resultCoins").textContent = "80";
 }
 
-// -------------------- SETUP & EVENT BINDINGS --------------------
+function updateLobby() {
+  document.getElementById("roomCodeDisplay").textContent = "#" + Math.random().toString(36).substr(2,4).toUpperCase();
+  const list = document.getElementById("playerList");
+  list.innerHTML = "";
+  const p1 = document.createElement("div"); p1.className = "player-slot";
+  p1.innerHTML = `<span class="avatar">😎</span> You (Host) <span class="ready-badge">✔</span>`;
+  list.appendChild(p1);
+  const p2 = document.createElement("div"); p2.className = "player-slot";
+  p2.innerHTML = `<span class="avatar">🕹️</span> Player 2 <span class="ready-badge">✔</span>`;
+  list.appendChild(p2);
+  for (let i = 0; i < 2; i++) {
+    const bot = document.createElement("div"); bot.className = "player-slot";
+    bot.innerHTML = `<span class="avatar">🤖</span> Bot ${i+1} <span class="ready-badge">✔</span>`;
+    list.appendChild(bot);
+  }
+}
+
+// -------------------- INITIALIZATION --------------------
 window.addEventListener("load", () => {
   canvas = document.getElementById("gameCanvas");
   ctx = canvas.getContext("2d");
@@ -695,7 +623,6 @@ window.addEventListener("load", () => {
 
   setupInput();
 
-  // Main menu buttons
   document.getElementById("playBtn").addEventListener("click", () => {
     document.getElementById("modeSubmenu").classList.toggle("hidden");
   });
@@ -712,44 +639,22 @@ window.addEventListener("load", () => {
     updateLobby();
   });
 
-  // Profile / Cosmetics / Settings (simple)
   document.getElementById("profileBtn").addEventListener("click", () => showScreen("profilePanel"));
   document.getElementById("cosmeticsBtn").addEventListener("click", () => showScreen("cosmeticsPanel"));
   document.getElementById("settingsBtn").addEventListener("click", () => showScreen("settingsPanel"));
-  document.querySelectorAll(".btn-back").forEach(btn => btn.addEventListener("click", () => showScreen("mainMenu")));
+
+  document.querySelectorAll(".btn-back").forEach(btn => {
+    btn.addEventListener("click", () => showScreen("mainMenu"));
+  });
   document.getElementById("logoutBtn").addEventListener("click", () => showScreen("mainMenu"));
 
-  // Lobby start
   document.getElementById("startMatchBtn").addEventListener("click", startMatchWithSettings);
   document.getElementById("leaveLobbyBtn").addEventListener("click", () => showScreen("mainMenu"));
   document.getElementById("copyRoomBtn").addEventListener("click", () => alert("Room code copied!"));
 
-  // Post-match
   document.getElementById("playAgainBtn").addEventListener("click", startMatchWithSettings);
   document.getElementById("backToMenuBtn").addEventListener("click", () => showScreen("mainMenu"));
 
-  // Initially show menu
   showScreen("mainMenu");
-
-  // Start game loop
   requestAnimationFrame(gameLoop);
 });
-
-function updateLobby() {
-  document.getElementById("roomCodeDisplay").textContent = "#" + Math.random().toString(36).substr(2,4).toUpperCase();
-  const list = document.getElementById("playerList");
-  list.innerHTML = "";
-  // Show two human players
-  const p1 = document.createElement("div"); p1.className = "player-slot";
-  p1.innerHTML = `<span class="avatar">😎</span> You (Host) <span class="ready-badge">✔</span>`;
-  list.appendChild(p1);
-  const p2 = document.createElement("div"); p2.className = "player-slot";
-  p2.innerHTML = `<span class="avatar">🕹️</span> Player 2 <span class="ready-badge">✔</span>`;
-  list.appendChild(p2);
-  // Maybe bot slots
-  for (let i = 0; i < 2; i++) {
-    const bot = document.createElement("div"); bot.className = "player-slot";
-    bot.innerHTML = `<span class="avatar">🤖</span> Bot ${i+1} <span class="ready-badge">✔</span>`;
-    list.appendChild(bot);
-  }
-}
